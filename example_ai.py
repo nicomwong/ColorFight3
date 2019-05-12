@@ -9,7 +9,7 @@ game = Colorfight()
 
 # Connect to the server. This will connect to the public room. If you want to
 # join other rooms, you need to change the argument
-game.connect(room = 'public')
+game.connect(room = 'nico')
 
 # game.register should return True if succeed.
 # As no duplicate usernames are allowed, a random integer string is appended
@@ -19,7 +19,7 @@ game.connect(room = 'public')
 # as the password. You should change it to something that will not change 
 # between runs so you can continue the game if disconnected.
 if game.register(username = 'ExampleAI' + str(random.randint(1, 100)), \
-        password = str(int(time.time()))):
+        password = str(int(time.time())), join_key = 'asdf'):
     # This is the game loop
     while True:
         # The command list we will send to the server
@@ -42,22 +42,13 @@ if game.register(username = 'ExampleAI' + str(random.randint(1, 100)), \
 
         # game.me.cells is a dict, where the keys are Position and the values
         # are MapCell. Get all my cells.
+        print("hi")
         for cell in game.me.cells.values():
-            # Check the surrounding position
             for pos in cell.position.get_surrounding_cardinals():
-                # Get the MapCell object of that position
                 c = game.game_map[pos]
-                # Attack if the cost is less than what I have, and the owner
-                # is not mine, and I have not attacked it in this round already
-                # We also try to keep our cell number under 100 to avoid tax
                 if c.attack_cost < me.energy and c.owner != game.uid \
                         and c.position not in my_attack_list \
                         and len(me.cells) < 95:
-                    # Add the attack command in the command list
-                    # Subtract the attack cost manually so I can keep track
-                    # of the energy I have.
-                    # Add the position to the attack list so I won't attack
-                    # the same cell
                     cmd_list.append(game.attack(pos, c.attack_cost))
                     print("We are attacking ({}, {}) with {} energy".format(pos.x, pos.y, c.attack_cost))
                     game.me.energy -= c.attack_cost
