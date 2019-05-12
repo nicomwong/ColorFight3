@@ -42,6 +42,8 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 				c = game_map[pos]	
 				if c.owner != g.uid and c.position not in my_adj_list:
 					my_adj_list.append(c.position)
+				elif c.owner == g.uid:
+					my_perimeter_list.append(c.position)
 		
 		#order adj list descending order
 		for i in range(0, len(my_adj_list) - 1):
