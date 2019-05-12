@@ -4,9 +4,9 @@ import random
 from colorfight.constants import BLD_GOLD_MINE, BLD_ENERGY_WELL, BLD_FORTRESS
 
 g = Colorfight()
-g.connect(room = 'nico')
+g.connect(room = 'public')
 
-if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
+if g.register(username = 'larry_wheels', password = '123'):
 	
 	while True:
 		cmd_list = []
@@ -22,12 +22,7 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 		my_upgrade_list = []
 
 		#update game
-		g.update_turn()
-		
-		#constants
-		modifier = 0 #additional energy to put into attacking to bypass perimeter defense
-		if (len(me.cells.values()) > 100)):
-			modifier = len(me.cells.values()) / 100
+		g.update_turn()	
 
 		if g.me == None: #execution keeps going into this
 			continue
@@ -35,8 +30,12 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 		#shorthands
 		me = g.me
 		game_map = g.game_map
+		
+		#constants
+		#additional energy to put into attacking to bypass perimeter defense
+		modifier = int(len(me.cells.values()) / 100)
 
-		#update adj list
+		#update adj list and perim list
 		for c in me.cells.values():
 			for pos in c.position.get_surrounding_cardinals():	
 				c = game_map[pos]	
@@ -61,6 +60,28 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 				my_adj_list[i + 1] = my_adj_list[i]
 				my_adj_list[i] = tmp.position
 
+#instead, make based on size or time
+		#move empty adj to front
+		for i in range(0, len(my_adj_list) - 2):
+			#next cell in list
+			tmp = game_map[my_adj_list[i + 2]]
+			#this cell in list
+			this = game_map[my_adj_list[i]]
+	
+			#if this is not empty and the next next is empty, swap
+			if tmp.is_empty and not this.is_empty:
+				my_adj_list[i + 2] = my_adj_list[i]
+				my_adj_list[i] = tmp.position
+	
+		#once at 40 size, focus adjacent enemy home
+		if(len(me.cells.values()) > 40):
+			for pos in my_adj_list:
+				c = game_map[pos]
+				if c.owner != g.uid and not c.is_empty:
+					tmp = my_adj_list[0]
+					my_adj_list[0] = pos
+					my_adj_list.append(tmp)
+
 		#attack adj list
 		for pos in my_adj_list:
 			c = game_map[pos]	
@@ -76,9 +97,26 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 				my_attack_list.append(pos)	
 				cmd_list.append(g.attack(pos, attack_expend))
 
+		#attack "defend" perimeter
+		for pos in my_perimeter_list:
+			c = game_map[pos]
+			if c.position not in my_attack_list:
+				my_attack_list.append(pos)	
+				#attacks with modifier
+				cmd_list.append(g.attack(pos, modifier))
+				me.energy -= modifier
+				print("We are attacking ({}, {}) with {} energy".format(pos.x, pos.y, attack_expend))
 
-		#if gold is bottlenecked by space, then only upgrade home and wells
-		if me.gold / len(me.cells.values()) > 80:
+		#randomly build fortifications on perimeters
+		if me.gold / len(me.cells.values()) > 75:
+			for pos in my_perimeter_list:
+				c = game_map[pos]
+				if c.building.is_empty and me.gold >= 100:
+					cmd_list.append(g.build(pos, [BLD_FORTRESS]))
+					me.gold -= 100
+		
+		#if gold is bottlenecked by space
+		if me.gold / len(me.cells.values()) > 60:
 			#upgrade home
 			for c in me.cells.values():
 				if c.building.can_upgrade \
@@ -101,28 +139,31 @@ if g.register(username = 'nicoAI', password = '123', join_key = 'asdf'):
 					me.gold -= c.building.upgrade_gold
 					me.energy -= c.building.upgrade_energy
 
-		else:
-			#upgrade wells, mines
-			for c in me.cells.values():
-				if c.building.can_upgrade \
-						and c.building.name == "energy_well" or c.building.name == "gold_mine" \
-						and c.building.level < me.tech_level \
-						and c.building.upgrade_gold < me.gold \
-						and c.building.upgrade_energy < me.energy:
-					cmd_list.append(g.upgrade(c.position))
-					print("We upgraded ({}, {})".format(c.position.x, c.position.y))
-					me.gold -= c.building.upgrade_gold
-					me.energy -= c.building.upgrade_energy
+		#upgrade mines or wells
+		for c in me.cells.values():
+			if c.building.can_upgrade \
+					and (c.building.name == "energy_well" or c.building.name == "gold_mine") \
+					and c.building.level < me.tech_level \
+					and c.building.upgrade_gold < me.gold \
+					and c.building.upgrade_energy < me.energy:
+				cmd_list.append(g.upgrade(c.position))
+				print("We upgraded ({}, {})".format(c.position.x, c.position.y))
+				me.gold -= c.building.upgrade_gold
+				me.energy -= c.building.upgrade_energy
 
 		#build wells/mines
 		for c in me.cells.values():
 			if c.owner == me.uid and c.building.is_empty and me.gold >= 100:
 				building = random.choice([BLD_GOLD_MINE, BLD_ENERGY_WELL])
+				if len(me.cells.values()) < 100:
+					r = random.randrange(0, 100)
+					if r <= 35:
+						building = BLD_GOLD_MINE
+					else:
+						building = BLD_ENERGY_WELL
 				cmd_list.append(g.build(c.position, building))
 				print("We built {} on ({}, {})".format(building, c.position.x, c.position.y))
 				me.gold -= 100
-
-		
 
 
 		result = g.send_cmd(cmd_list)
